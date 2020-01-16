@@ -5,26 +5,73 @@
 \alias{wvar.lts}
 \alias{wvar.gts}
 \alias{wvar.ts}
+\alias{wvar.imu}
 \alias{wvar.default}
 \title{Wavelet Variance}
 \usage{
 wvar(x, ...)
 
-\method{wvar}{lts}(x, decomp = "modwt", filter = "haar",
-  nlevels = NULL, alpha = 0.05, robust = FALSE, eff = 0.6,
-  to.unit = NULL, ...)
+\method{wvar}{lts}(
+  x,
+  decomp = "modwt",
+  filter = "haar",
+  nlevels = NULL,
+  alpha = 0.05,
+  robust = FALSE,
+  eff = 0.6,
+  to.unit = NULL,
+  ...
+)
 
-\method{wvar}{gts}(x, decomp = "modwt", filter = "haar",
-  nlevels = NULL, alpha = 0.05, robust = FALSE, eff = 0.6,
-  to.unit = NULL, ...)
+\method{wvar}{gts}(
+  x,
+  decomp = "modwt",
+  filter = "haar",
+  nlevels = NULL,
+  alpha = 0.05,
+  robust = FALSE,
+  eff = 0.6,
+  to.unit = NULL,
+  ...
+)
 
-\method{wvar}{ts}(x, decomp = "modwt", filter = "haar",
-  nlevels = NULL, alpha = 0.05, robust = FALSE, eff = 0.6,
-  to.unit = NULL, ...)
+\method{wvar}{ts}(
+  x,
+  decomp = "modwt",
+  filter = "haar",
+  nlevels = NULL,
+  alpha = 0.05,
+  robust = FALSE,
+  eff = 0.6,
+  to.unit = NULL,
+  ...
+)
 
-\method{wvar}{default}(x, decomp = "modwt", filter = "haar",
-  nlevels = NULL, alpha = 0.05, robust = FALSE, eff = 0.6,
-  freq = 1, from.unit = NULL, to.unit = NULL, ...)
+\method{wvar}{imu}(
+  x,
+  decomp = "modwt",
+  filter = "haar",
+  nlevels = NULL,
+  alpha = 0.05,
+  robust = FALSE,
+  eff = 0.6,
+  to.unit = NULL,
+  ...
+)
+
+\method{wvar}{default}(
+  x,
+  decomp = "modwt",
+  filter = "haar",
+  nlevels = NULL,
+  alpha = 0.05,
+  robust = FALSE,
+  eff = 0.6,
+  freq = 1,
+  from.unit = NULL,
+  to.unit = NULL,
+  ...
+)
 }
 \arguments{
 \item{x}{A \code{vector} with dimensions N x 1.}
@@ -51,14 +98,14 @@ wvar(x, ...)
 }
 \value{
 A \code{list} with the structure:
-\describe{
-  \item{"variance"}{Wavelet Variance}
-  \item{"ci_low"}{Lower CI}
-  \item{"ci_high"}{Upper CI}
-  \item{"robust"}{Robust active}
-  \item{"eff"}{Efficiency level for Robust calculation}
-  \item{"alpha"}{p value used for CI}
-  \item{"unit"}{String representation of the unit}
+\itemize{
+  \item "variance": Wavelet Variance
+  \item "ci_low": Lower CI
+  \item "ci_high": Upper CI
+  \item "robust": Robust active 
+  \item "eff": Efficiency level for Robust calculation
+  \item "alpha": p value used for CI
+  \item "unit": String representation of the unit
 }
 }
 \description{

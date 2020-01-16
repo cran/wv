@@ -1,27 +1,88 @@
+#' @title Convert Unit of Time Series Data
+#' @description Manipulate the units of time to different ones
+#' @keywords internal
+#' @param x          A \code{vector} containing the values on x-axis.
+#' @param from.unit  A \code{string} indicating the unit which the data is converted from.
+#' @param to.unit    A \code{string} indicating the unit which the data is converted to.
+#' @details
+#' The supported units are "ns"(nanosecond), "ms"(millisecond), "sec", "min", "hour", "day", "month", and "year".
+#' Make sure \code{from.unit} and \code{to.unit} are not \code{NULL} before it is passed to this function.
+#' @return A \code{list} with the following structure:
+#' \itemize{
+#'  \item "x": Data
+#'  \item "converted": A \code{boolean} indicating whether conversion is made
+#' }
+#' @export
+#' @examples
+#' x = seq(60, 3600, 60)
+#' unitConversion(x, 'sec', 'min')
+#' y = 1:10
+#' unitConversion(y, 'hour', 'sec')
+unitConversion = function(x, from.unit, to.unit){
+  
+  #ns, ms, second, min, hour, day, month, year
+  unit = c(ns = 1, ms = 2,se = 3, mi = 4, ho = 5, da = 6, mo = 7, ye = 8)
+  
+  #assume 1 month = 30 days
+  ratio = c(1E6, 1E3, 60, 60, 24, 30, 12)
+  from.unit.1 = substr(from.unit, 1, 2)
+  to.unit.1 = substr(to.unit, 1, 2)
+  
+  #check unit:
+  no.convert = F
+  if(from.unit.1 == to.unit.1){no.convert = T}
+  if(is.na(unit[from.unit.1]) ) {
+    message = paste('No such unit: ', from.unit, '. Supported units are "ns"(nanosecond), "ms"(millisecond), "sec", "min", "hour", "day", "month", and "year". Conversion is terminated.', sep = '')
+    warning(message); no.convert = T}
+  if(is.na(unit[to.unit.1]) ) {
+    message = paste('No such unit: ', to.unit, '. Supported units are "ns"(nanosecond), "ms"(millisecond), "sec", "min", "hour", "day", "month", and "year". Conversion is terminated.', sep = '')
+    warning(message); no.convert = T}
+  
+  if(!no.convert){
+    #print out warning when day is convert to month, or month is converted to day.
+    conversionRange = unit[from.unit.1] : unit[to.unit.1]
+    if(6 %in% conversionRange && 7 %in% conversionRange){
+      warning('Unit conversion might be wrong because this function simply assumes 1 month = 30 days.')
+    }
+  }
+  
+  if(!no.convert){
+    if(unit[from.unit.1] > unit[to.unit.1]){
+      temp = ratio[unit[to.unit.1]: (unit[from.unit.1]-1)]
+      multiplier = prod(temp)
+      x = x*multiplier
+    }else{
+      temp = ratio[unit[from.unit.1]: (unit[to.unit.1]-1) ]
+      multiplier = prod(temp)
+      x = x/multiplier
+    }
+  }
+  obj = list(x = x, converted = !no.convert)  
+  return(obj)
+}
+
 #' @title Wavelet Variance
-#' 
-#' @description
-#' Calculates the (MO)DWT wavelet variance
+#' @description Calculates the (MO)DWT wavelet variance
 #' @param x         A \code{vector} with dimensions N x 1.
 #' @param decomp    A \code{string} that indicates whether to use a "dwt" or "modwt" decomposition.
 #' @param filter    A \code{string} that specifies which wavelet filter to use.
 #' @param nlevels   An \code{integer} that indicates the level of decomposition. It must be less than or equal to floor(log2(length(x))).
+#' @param alpha     A \code{double} that specifies the significance level which in turn specifies the \eqn{1-\alpha} confidence level.
 #' @param robust    A \code{boolean} that triggers the use of the robust estimate.
 #' @param eff       A \code{double} that indicates the efficiency as it relates to an MLE.
-#' @param alpha     A \code{double} that specifies the significance level which in turn specifies the \eqn{1-\alpha} confidence level.
 #' @param freq      A \code{numeric} that provides the rate of samples.
 #' @param from.unit A \code{string} indicating the unit from which the data is converted.
 #' @param to.unit   A \code{string} indicating the unit to which the data is converted.
 #' @param ...       Further arguments passed to or from other methods.
 #' @return A \code{list} with the structure:
-#' \describe{
-#'   \item{"variance"}{Wavelet Variance}
-#'   \item{"ci_low"}{Lower CI}
-#'   \item{"ci_high"}{Upper CI}
-#'   \item{"robust"}{Robust active}
-#'   \item{"eff"}{Efficiency level for Robust calculation}
-#'   \item{"alpha"}{p value used for CI}
-#'   \item{"unit"}{String representation of the unit}
+#' \itemize{
+#'   \item "variance": Wavelet Variance
+#'   \item "ci_low": Lower CI
+#'   \item "ci_high": Upper CI
+#'   \item "robust": Robust active 
+#'   \item "eff": Efficiency level for Robust calculation
+#'   \item "alpha": p value used for CI
+#'   \item "unit": String representation of the unit
 #' }
 #' @details 
 #' The default value of \code{nlevels} will be set to \eqn{\left\lfloor {{{\log }_2}\left( {length\left( x \right)} \right)} \right\rfloor}{floor(log2(length(x)))}, unless otherwise specified.
@@ -80,10 +141,74 @@ wvar.ts = function(x, decomp="modwt", filter = "haar", nlevels = NULL, alpha = 0
   wvar.default(x, decomp, filter, nlevels, alpha, robust, eff, freq = freq, from.unit = unit, to.unit = to.unit)
 }
 
+
+#' @rdname wvar
+#' @export
+wvar.imu = function(x, decomp="modwt", filter = "haar", nlevels = NULL, alpha = 0.05, robust = FALSE, eff = 0.6, to.unit = NULL, ...){
+  # Retrive sensor name
+  if (!is.null(attr(x, "stype"))){
+    sensor_name = attr(x, "stype")
+  }else{
+    warning("Unknown sensor name. IMU object is missing some information.")
+    sensor_name = NULL
+  }
+  
+  # Retrive freq
+  if (!is.null(attr(x, "freq"))){
+    freq = attr(x, "freq")
+  }else{
+    warning("Unknown frequency. IMU object is missing some information. Freq is set to 1 by default.")
+    freq = 1
+  }
+  
+  # Retrive sample size
+  if (!is.null(attr(x, "dim"))){
+    n = attr(x, "dim")[1]
+  }else{
+    warning("Unknown sample size. IMU object is missing some information.")
+    n = NULL
+  }
+  
+  # Retrive col names
+  if (!is.null(attr(x, "dimnames")[[2]])){
+    col_names = attr(x, "dimnames")[[2]]
+  }else{
+    stop("Unknown colunms names. IMU object is missing some information.")
+    col_names = NULL
+  }
+  
+  # Retrive sensor
+  if (!is.null(attr(x, "sensor"))){
+    sensor = attr(x, "sensor")
+  }else{
+    warning("Unknown sensor. IMU object is missing some information.")
+    sensor = NULL
+  }
+  
+  # Retrive axis
+  if (!is.null(attr(x, "axis"))){
+    ax = attr(x, "axis")
+  }else{
+    warning("Unknown axes. IMU object is missing some information.")
+    ax = NULL
+  }
+  
+  # Compute wvar
+  m = length(col_names)
+  wvariance = list()
+  for (i in 1:m){
+    wvariance[[i]] = wvar.default(x[,i], decomp, filter, nlevels, alpha, robust, eff, freq = freq, to.unit = to.unit)
+  }
+  names(wvariance) = col_names
+  out = list(sensor = sensor_name, freq = freq, n = n, type = sensor, axis = ax, wvar = wvariance)
+  class(out) = "imu_wvar"
+  invisible(out)
+}
+
+
 #' @rdname wvar
 #' @export
 #' @importFrom methods is
-#' @importFrom simts unitConversion
 wvar.default = function(x, decomp = "modwt", filter = "haar", nlevels = NULL, alpha = 0.05, robust = FALSE, eff = 0.6, freq = 1, from.unit = NULL, to.unit = NULL, ...){
   if(is.null(x)){
     stop("`x` must contain a value")
@@ -148,9 +273,7 @@ wvar.default = function(x, decomp = "modwt", filter = "haar", nlevels = NULL, al
 }
 
 #' @title Create a \code{wvar} object
-#' 
-#' @description
-#' Structures elements into a \code{wvar} object
+#' @description Structures elements into a \code{wvar} object
 #' @param obj    A \code{matrix} with dimensions N x 3 that contains Wavelet Variance, Lower CI, and Upper CI.
 #' @param decomp A \code{string} that indicates whether to use a "dwt" or "modwt" decomposition.
 #' @param filter A \code{string} that specifies the type of wavelet filter used in the decomposition.
@@ -160,14 +283,14 @@ wvar.default = function(x, decomp = "modwt", filter = "haar", nlevels = NULL, al
 #' @param scales A \code{vec} that contains the amount of decomposition performed at each level.
 #' @param unit   A \code{string} that indicates the unit expression of the frequency.
 #' @return A \code{list} with the structure:
-#' \describe{
-#'   \item{"variance"}{Wavelet Variance}
-#'   \item{"ci_low"}{Lower CI}
-#'   \item{"ci_high"}{Upper CI}
-#'   \item{"robust"}{Robust active}
-#'   \item{"eff"}{Efficiency level for Robust calculation}
-#'   \item{"alpha"}{p value used for CI}
-#'   \item{"unit"}{String representation of the unit}
+#' \itemize{
+#'   \item "variance": Wavelet variance
+#'   \item "ci_low": Lower CI
+#'   \item "ci_high": Upper CI
+#'   \item "robust": Robust active
+#'   \item "eff": Efficiency level for robust calculation
+#'   \item "alpha": p value used for CI
+#'   \item "unit": String representation of the unit
 #' }
 #' @keywords internal
 create_wvar = function(obj, decomp, filter, robust, eff, alpha, scales, unit){
@@ -184,9 +307,7 @@ create_wvar = function(obj, decomp, filter, robust, eff, alpha, scales, unit){
 }
 
 #' @title Print Wavelet Variances
-#' 
-#' @description
-#' Displays the summary table of wavelet variance.
+#' @description Displays the summary table of wavelet variance.
 #' @author James Balamuta 
 #' @method print wvar
 #' @export
@@ -207,9 +328,7 @@ print.wvar = function(x, ...){
 }
 
 #' @title Summary of Wavelet Variances
-#' 
-#' @description 
-#' Displays the summary table of wavelet variance accounting for CI values and supplied efficiency.
+#' @description Displays the summary table of wavelet variance accounting for CI values and supplied efficiency.
 #' @method summary wvar
 #' @export
 #' @keywords internal
@@ -238,10 +357,8 @@ summary.wvar = function(object, ...){
   print(object)
 }
 
-#' @title Plot Wavelet Variances
-#' 
-#' @description 
-#' Displays a plot of wavelet variance accounting for CI values and supplied efficiency.
+#' @title Plot Wavelet Variance
+#' @description Displays a plot of wavelet variance accounting for CI values and supplied efficiency.
 #' @method plot wvar
 #' @keywords internal
 #' @param x                A \code{wvar} object.
@@ -251,12 +368,12 @@ summary.wvar = function(object, ...){
 #' @param main             A \code{string} that gives an overall title for the plot.
 #' @param col_wv           A \code{string} that specifies the color of the wavelet variance line.
 #' @param col_ci           A \code{string} that specifies the color of the confidence interval polygon.
-#' @param ci_wv            A \code{boolean} that determines whether a confidence interval polygon will be drawn.
 #' @param nb_ticks_x       An \code{integer} that specifies the maximum number of ticks for the x-axis.
 #' @param nb_ticks_y       An \code{integer} that specifies the maximum number of ticks for the y-axis.
 #' @param legend_position  A \code{string} that specifies the position of the legend (use \code{legend_position = NA} to remove legend).
-#' @param point_pch        A \code{double} that specifies the symbol type to be plotted.
+#' @param ci_wv            A \code{boolean} that determines whether a confidence interval polygon will be drawn.
 #' @param point_cex        A \code{double} that specifies the size of each symbol to be plotted.
+#' @param point_pch        A \code{double} that specifies the symbol type to be plotted.
 #' @param ...              Additional arguments affecting the plot.
 #' @return Plot of wavelet variance and confidence interval for each scale.
 #' @author Stephane Guerrier, Nathanael Claussen, and Justin Lee
@@ -425,11 +542,200 @@ plot.wvar = function(x, units = NULL, xlab = NULL, ylab = NULL, main = NULL,
 }
 
 
+#' @title Plot Wavelet Variance based on IMU Data
+#' @description Displays a plot of wavelet variance accounting for CI values and supplied efficiency.
+#' @method plot imu_wvar
+#' @keywords internal
+#' @param x                A \code{wvar} object.
+#' @param xlab             A \code{string} that gives a title for the x axis.
+#' @param ylab             A \code{string} that gives a title for the y axis.
+#' @param main             A \code{string} that gives an overall title for the plot.
+#' @param col_wv           A \code{string} that specifies the color of the wavelet variance line.
+#' @param col_ci           A \code{string} that specifies the color of the confidence interval polygon.
+#' @param nb_ticks_x       An \code{integer} that specifies the maximum number of ticks for the x-axis.
+#' @param nb_ticks_y       An \code{integer} that specifies the maximum number of ticks for the y-axis.
+#' @param ci_wv            A \code{boolean} that determines whether a confidence interval polygon will be drawn.
+#' @param point_cex        A \code{double} that specifies the size of each symbol to be plotted.
+#' @param point_pch        A \code{double} that specifies the symbol type to be plotted.
+#' @param ...              Additional arguments affecting the plot.
+#' @return Plot of wavelet variance and confidence interval for each scale.
+#' @author Stephane Guerrier and Yuming Zhang
+#' @export
+#' @examples 
+#' data("kvh1750_wv")
+#' plot(kvh1750_wv)
+plot.imu_wvar = function(x, xlab = NULL, ylab = NULL, main = NULL,
+                         col_wv = NULL, col_ci = NULL, nb_ticks_x = NULL, nb_ticks_y = NULL,
+                         ci_wv = NULL, point_cex = NULL, point_pch = NULL, ...){
+  type = unique(x$type)
+  if ("Gyroscope" %in% type){
+    gyro_index = which(x$type == "Gyroscope")
+  }else{
+    gyro_index = NULL
+  }
+  if ("Accelerometer" %in% type){
+    accel_index = which(x$type == "Accelerometer")
+  }else{
+    accel_index = NULL
+  }
+  
+  ncol = length(unique(x$axis))
+  nrow = length(type)
+  m = length(x$wvar)
+  J = length(x$wvar[[1]]$variance)
+  
+  # remove negative CI values
+  index_to_remove = c()
+  for (i in 1:m) {
+    if(length(which(x$wvar[[i]]$lci<0)) > 0){
+      index_to_remove = c(index_to_remove, which(x$wvar[[i]]$lci<0))
+    }
+  }
+  if (!is.null(index_to_remove)){
+    index_to_remove = unique(index_to_remove)
+    index_to_keep = which(seq(1:J) != index_to_remove)
+  }else{
+    index_to_keep = 1:J
+  }
+  J = length(index_to_keep)
+  scales = x$wvar[[1]]$scales[index_to_keep]
+  ci_up = ci_lw = av = matrix(NA, J, m)
+  for (i in 1:m){
+    ci_up[,i] = x$wvar[[i]]$ci_high[index_to_keep]
+    ci_lw[,i] = x$wvar[[i]]$ci_low[index_to_keep]
+    av[,i] = x$wvar[[i]]$variance[index_to_keep]
+  }
+  
+  # Axes
+  if (is.null(nb_ticks_x)){
+    nb_ticks_x = 6
+  }
+  if (is.null(nb_ticks_y)){
+    nb_ticks_y = 5
+  }
+  
+  # Range
+  x_range = range(scales)
+  x_low = floor(log10(x_range[1]))
+  x_high = ceiling(log10(x_range[2]))
+  x_ticks = seq(x_low, x_high, by = 1)
+  if (length(x_ticks) > nb_ticks_x){
+    x_ticks = x_low + ceiling((x_high - x_low)/(nb_ticks_x + 1))*(0:nb_ticks_x)
+  }
+  x_labels = sapply(x_ticks, function(i) as.expression(bquote(10^ .(i))))
+  # Line and CI colors
+  if (is.null(col_wv)){
+    col_wv = "darkblue"
+  }
+  if (is.null(col_ci)){
+    col_ci = hcl(h = 210, l = 65, c = 100, alpha = 0.2)
+  }
+  if (is.null(point_pch)){
+    point_pch = 16
+  }
+  if (is.null(point_cex)){
+    point_cex = 1.25
+  }
+  # Main Title
+  if (is.null(main)){
+    main = paste("Wavelet Variance Representation - ", x$sensor, " @ ", x$freq, " Hz", sep="")
+  }
+  # Labels
+  if (is.null(xlab)){
+    xlab = bquote(paste("Averaging time ", tau, " [sec]", sep = " "))
+  }
+  if (is.null(ylab)){
+    ylab = expression(paste("Wavelet Variance ", nu, sep = ""))
+  }
+  
+  # Main plot
+  par(omi=rep(1, 4), mar=c(0,0,0,0), mfrow=c(nrow,ncol))
+  
+  # Gyro
+  if (!is.null(gyro_index)){
+    y_range = c(min(ci_lw[,gyro_index]), max(ci_up[,gyro_index]))
+    y_low = floor(log10(y_range[1]))
+    y_high = ceiling(log10(y_range[2]))
+    y_ticks <- seq(y_low, y_high, by = 1)
+    if (length(y_ticks) > nb_ticks_y){
+      y_ticks = y_low + ceiling((y_high - y_low)/(nb_ticks_y + 1))*(0:nb_ticks_y)
+    }
+    y_labels <- sapply(y_ticks, function(i) as.expression(bquote(10^ .(i))))
+    for (i in seq_along(gyro_index)){
+      plot(NA, xlim = range(scales), ylim = y_range, xaxt="n", yaxt="n", log = "xy", bty = "n")
+      box(col = "grey")
+      mtext(paste("Axis - ", x$axis[gyro_index][i], sep = ""), 3, line = 0.5)
+      if (i == 1){
+        axis(2, at = 10^y_ticks, labels = y_labels, padj = -0.2, cex = 1.25)
+      }
+      if (i == 1){
+        mtext("Gyroscope", 2, line = 4.5)
+        mtext(ylab, 2, line = 2.5)
+      }
+      abline(h = 10^y_ticks, col = "grey85")
+      abline(v = 10^x_ticks, col = "grey85")
+      # CI for AD
+      if(ci_wv == TRUE || is.null(ci_wv)){
+        polygon(c(scales, rev(scales)), c(ci_lw[,gyro_index[i]], rev(ci_up[,gyro_index[i]])),
+                border = NA, col = col_ci)
+      }
+      # Add AD
+      lines(scales, (av[,gyro_index[i]]), type = "l", col = col_wv, pch = 16)
+      lines(scales, (av[,gyro_index[i]]), type = "p", col = col_wv, pch = point_pch, cex = point_cex)
+      if (is.null(accel_index)){
+        axis(1, at = 10^x_ticks, labels = x_labels, padj = -0.2, cex = 1.25)
+      }
+    }
+  }
+  # Accel
+  if (!is.null(accel_index)){
+    y_range = c(min(ci_lw[,accel_index]), max(ci_up[,accel_index]))
+    y_low = floor(log10(y_range[1]))
+    y_high = ceiling(log10(y_range[2]))
+    y_ticks <- seq(y_low, y_high, by = 1)
+    if (length(y_ticks) > nb_ticks_y){
+      y_ticks = y_low + ceiling((y_high - y_low)/(nb_ticks_y + 1))*(0:nb_ticks_y)
+    }
+    y_labels <- sapply(y_ticks, function(i) as.expression(bquote(10^ .(i))))
+    for (i in seq_along(accel_index)){
+      plot(NA, xlim = range(scales), ylim = y_range, xaxt="n", yaxt="n", log = "xy", bty = "n")
+      box(col = "grey")
+      if (i == 1){
+        axis(2, at = 10^y_ticks, labels = y_labels, padj = -0.2, cex = 1.25)
+      }
+      if (i == 1){
+        mtext("Accelerometer", 2, line = 4.5)
+        mtext(ylab, 2, line = 2.5)
+      }
+      if (length(accel_index) == 3 && i == 2){
+        mtext(xlab, 1, line = 3.5)
+      }
+      if (is.null(gyro_index)){
+        mtext(paste("Axis - ", x$axis[gyro_index][i], sep = ""), 3, line = 0.5)
+      }
+      abline(h = 10^y_ticks, col = "grey85")
+      abline(v = 10^x_ticks, col = "grey85")
+      # CI for AD
+      if(ci_wv == TRUE || is.null(ci_wv)){
+        polygon(c(scales, rev(scales)), c(ci_lw[,accel_index[i]], rev(ci_up[,accel_index[i]])),
+                border = NA, col = col_ci)
+      }
+      # Add AD
+      lines(scales, (av[,accel_index[i]]), type = "l", col = col_wv, pch = 16)
+      lines(scales, (av[,accel_index[i]]), type = "p", col = col_wv, pch = point_pch, cex = point_cex)
+      axis(1, at = 10^x_ticks, labels = x_labels, padj = -0.2, cex = 1.25)
+    }
+  }
+  # Add main title
+  mtext(main, side = 3, line = 3, outer = TRUE)
+  par(mfrow = c(1,1))
+}
+
+
+
 #' @title Comparison between classical and robust Wavelet Variances
-#' 
-#' @description 
-#' Displays a plot of the wavelet variances (classical and robust) for a given time series accounting for CI values.
-#' @param x A time series objects.
+#' @description Displays a plot of the wavelet variances (classical and robust) for a given time series accounting for CI values.
+#' @param x               A time series objects.
 #' @param eff             An \code{integer} that specifies the efficiency of the robust estimator.
 #' @param units           A \code{string} that specifies the units of time plotted on the x axis.
 #' @param xlab            A \code{string} that gives a title for the x axis.
@@ -836,13 +1142,13 @@ compare_wvar_no_split = function(graph_details){
 #' @param ylab            A \code{string} that gives a title for the y axes.
 #' @param main            A \code{string} that gives an overall title for the plot.
 #' @param col_wv          A \code{string} that specifies the color of the wavelet variance lines. 
+#' @param col_ci          A \code{string} that specifies the color of the confidence interval shade.
 #' @param nb_ticks_x      An \code{integer} that specifies the maximum number of ticks for the x-axis.
 #' @param nb_ticks_y      An \code{integer} that specifies the maximum number of ticks for the y-axis.
 #' @param legend_position A \code{string} that specifies the position of the legend (use \code{legend_position = NA} to remove legend).
 #' @param ci_wv           A \code{boolean} that determines whether confidence interval polygons will be drawn.
-#' @param col_ci          A \code{string} that specifies the color of the confidence interval shade.
-#' @param point_pch       A \code{double} that specifies the symbol type to be plotted.
 #' @param point_cex       A \code{double} that specifies the size of each symbol to be plotted.
+#' @param point_pch       A \code{double} that specifies the symbol type to be plotted.
 #' @param names           A \code{string} that specifies the name of the WVAR objects. 
 #' @param cex_labels      A \code{double} that specifies the magnification of the labels (x and y).
 #' @author Stephane Guerrier and Justin Lee
